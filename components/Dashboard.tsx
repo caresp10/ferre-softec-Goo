@@ -17,8 +17,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const totalSalesCount = sales.length;
   const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
-  const topProduct = products.reduce((prev, current) => (prev.stock < current.stock) ? prev : current); // Dummy logic for demo
-
+  
   // Chart Data Preparation
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();

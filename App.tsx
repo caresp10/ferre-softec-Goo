@@ -4,42 +4,111 @@ import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import POS from './components/POS';
 import Customers from './components/Customers';
-import { ViewState, Product, Customer, Sale, Category, INITIAL_PRODUCTS, INITIAL_CUSTOMERS, INITIAL_CATEGORIES } from './types';
+import Login from './components/Login';
+import AdminDashboard from './components/AdminDashboard';
+import { ViewState, Product, Customer, Sale, Category, Tenant, INITIAL_PRODUCTS, INITIAL_CUSTOMERS, INITIAL_CATEGORIES } from './types';
 import { History, Menu, Wrench } from 'lucide-react';
 
 const App: React.FC = () => {
+  // Authentication State
+  const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
+  
+  // App State
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // App State - In a real app, this would be in Context or Redux
-  // Initialize from LocalStorage or Fallback to Constants
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('pos_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('pos_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-  });
+  // Data States
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
 
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('pos_customers');
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
-  });
+  // Check for active session on mount
+  useEffect(() => {
+    const session = localStorage.getItem('pos_active_session');
+    if (session) {
+      setCurrentTenant(JSON.parse(session));
+    }
+    setIsLoading(false);
+  }, []);
 
-  const [sales, setSales] = useState<Sale[]>(() => {
-    const saved = localStorage.getItem('pos_sales');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Helpers for Scoped Storage Keys
+  const getStorageKey = (key: string) => {
+    if (!currentTenant) return null;
+    return `tenant_${currentTenant.id}_${key}`;
+  };
 
-  // Persistence Effects
-  useEffect(() => { localStorage.setItem('pos_products', JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem('pos_categories', JSON.stringify(categories)); }, [categories]);
-  useEffect(() => { localStorage.setItem('pos_customers', JSON.stringify(customers)); }, [customers]);
-  useEffect(() => { localStorage.setItem('pos_sales', JSON.stringify(sales)); }, [sales]);
+  // Load Data when Tenant Changes
+  useEffect(() => {
+    if (!currentTenant || currentTenant.isAdmin) {
+      setProducts([]);
+      setCategories([]);
+      setCustomers([]);
+      setSales([]);
+      return;
+    }
 
-  // Handlers
+    const prodKey = getStorageKey('products');
+    const catKey = getStorageKey('categories');
+    const custKey = getStorageKey('customers');
+    const salesKey = getStorageKey('sales');
+
+    if (prodKey) {
+      const savedProds = localStorage.getItem(prodKey);
+      setProducts(savedProds ? JSON.parse(savedProds) : INITIAL_PRODUCTS);
+    }
+    if (catKey) {
+      const savedCats = localStorage.getItem(catKey);
+      setCategories(savedCats ? JSON.parse(savedCats) : INITIAL_CATEGORIES);
+    }
+    if (custKey) {
+      const savedCust = localStorage.getItem(custKey);
+      setCustomers(savedCust ? JSON.parse(savedCust) : INITIAL_CUSTOMERS);
+    }
+    if (salesKey) {
+      const savedSales = localStorage.getItem(salesKey);
+      setSales(savedSales ? JSON.parse(savedSales) : []);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant]);
+
+  // Persist Data Changes
+  useEffect(() => {
+    const key = getStorageKey('products');
+    if (key && currentTenant && !currentTenant.isAdmin) localStorage.setItem(key, JSON.stringify(products));
+  }, [products, currentTenant]);
+
+  useEffect(() => {
+    const key = getStorageKey('categories');
+    if (key && currentTenant && !currentTenant.isAdmin) localStorage.setItem(key, JSON.stringify(categories));
+  }, [categories, currentTenant]);
+
+  useEffect(() => {
+    const key = getStorageKey('customers');
+    if (key && currentTenant && !currentTenant.isAdmin) localStorage.setItem(key, JSON.stringify(customers));
+  }, [customers, currentTenant]);
+
+  useEffect(() => {
+    const key = getStorageKey('sales');
+    if (key && currentTenant && !currentTenant.isAdmin) localStorage.setItem(key, JSON.stringify(sales));
+  }, [sales, currentTenant]);
+
+
+  // Authentication Handlers
+  const handleLogin = (tenant: Tenant) => {
+    setCurrentTenant(tenant);
+    localStorage.setItem('pos_active_session', JSON.stringify(tenant));
+    setCurrentView(ViewState.DASHBOARD);
+  };
+
+  const handleLogout = () => {
+    setCurrentTenant(null);
+    localStorage.removeItem('pos_active_session');
+    setIsSidebarOpen(false);
+  };
+
+  // Business Logic Handlers
   const handleAddProduct = (product: Product) => {
     setProducts(prev => [...prev, product]);
   };
@@ -63,9 +132,7 @@ const App: React.FC = () => {
   };
 
   const handleCompleteSale = (sale: Sale) => {
-    // Save Sale
     setSales(prev => [sale, ...prev]);
-    // Update Stock
     setProducts(prev => prev.map(p => {
       const itemInCart = sale.items.find(i => i.id === p.id);
       if (itemInCart) {
@@ -75,7 +142,21 @@ const App: React.FC = () => {
     }));
   };
 
-  // Render View Logic
+  // Main Render Logic
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400">Cargando sistema...</div>;
+  }
+
+  if (!currentTenant) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  // --- ADMIN VIEW ---
+  if (currentTenant.isAdmin) {
+    return <AdminDashboard onLogout={handleLogout} />;
+  }
+
+  // --- TENANT VIEW ---
   const renderContent = () => {
     switch (currentView) {
       case ViewState.DASHBOARD:
@@ -161,6 +242,8 @@ const App: React.FC = () => {
         onChangeView={setCurrentView} 
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        tenantName={currentTenant.name}
+        onLogout={handleLogout}
       />
       
       <main className={`flex-1 lg:ml-64 p-4 lg:p-8 overflow-y-auto h-[calc(100vh-64px)] lg:h-screen bg-slate-50`}>

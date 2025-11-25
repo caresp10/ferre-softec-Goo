@@ -1,15 +1,17 @@
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, ShoppingCart, Package, Users, History, Wrench, X } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Users, History, Wrench, X, LogOut, Building } from 'lucide-react';
 
 interface SidebarProps {
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
   isOpen: boolean;
   onClose: () => void;
+  tenantName: string;
+  onLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, onClose, tenantName, onLogout }) => {
   const menuItems = [
     { id: ViewState.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: ViewState.POS, label: 'Punto de Venta', icon: ShoppingCart },
@@ -37,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, on
       <div className={`
         fixed top-0 left-0 z-40 h-full w-64 bg-slate-900 text-white shadow-2xl transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
-        lg:translate-x-0 lg:shadow-xl
+        lg:translate-x-0 lg:shadow-xl flex flex-col
       `}>
         <div className="p-6 flex items-center justify-between border-b border-slate-700">
           <div className="flex items-center space-x-3">
@@ -55,7 +57,20 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, on
           </button>
         </div>
 
-        <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
+        {/* Tenant Info */}
+        <div className="px-4 py-4 bg-slate-800/50">
+          <div className="flex items-center space-x-3 px-2">
+             <div className="bg-slate-700 p-1.5 rounded-md">
+               <Building className="w-4 h-4 text-slate-300" />
+             </div>
+             <div className="overflow-hidden">
+               <p className="text-xs text-slate-400">Organización</p>
+               <p className="text-sm font-semibold truncate text-white" title={tenantName}>{tenantName}</p>
+             </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 py-4 px-3 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentView === item.id;
@@ -76,8 +91,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, on
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 mt-auto">
-          <div className="flex items-center space-x-3 text-sm text-slate-500">
+        <div className="p-4 border-t border-slate-800 mt-auto space-y-4">
+           <button 
+             onClick={onLogout}
+             className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+           >
+             <LogOut className="w-5 h-5" />
+             <span className="font-medium">Cerrar Sesión</span>
+           </button>
+
+          <div className="flex items-center space-x-3 text-sm text-slate-500 px-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             <span>Sistema En Línea</span>
           </div>

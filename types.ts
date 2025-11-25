@@ -1,3 +1,4 @@
+
 export interface Product {
   id: string;
   name: string;
@@ -47,6 +48,37 @@ export interface Supplier {
   email: string;
 }
 
+export interface Tenant {
+  id: string;
+  name: string; // Nombre de la ferretería
+  email: string;
+  password: string; // En una app real, esto sería un hash
+  plan: 'FREE' | 'PRO' | 'ENTERPRISE';
+  createdAt: string;
+  isActive: boolean; // Control de acceso
+  isAdmin?: boolean; // Super Admin flag
+}
+
+export interface SubscriptionPlan {
+  id: 'FREE' | 'PRO' | 'ENTERPRISE';
+  name: string;
+  price: number;
+  features: string[];
+  maxProducts: number;
+  supportLevel: string;
+}
+
+export interface TenantInvoice {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  planId: string;
+  amount: number;
+  issueDate: string;
+  dueDate: string;
+  status: 'PAID' | 'PENDING' | 'OVERDUE';
+}
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   POS = 'POS',
@@ -54,6 +86,33 @@ export enum ViewState {
   CUSTOMERS = 'CUSTOMERS',
   HISTORY = 'HISTORY'
 }
+
+export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'FREE',
+    name: 'Plan Inicial',
+    price: 0,
+    maxProducts: 50,
+    supportLevel: 'Comunidad',
+    features: ['Punto de Venta Básico', 'Control de Stock Limitado', '1 Usuario']
+  },
+  {
+    id: 'PRO',
+    name: 'Plan Profesional',
+    price: 29.99,
+    maxProducts: 1000,
+    supportLevel: 'Email Prioritario',
+    features: ['Punto de Venta Avanzado', 'Facturación Electrónica', 'Reportes con IA', 'Multi-usuario (hasta 3)']
+  },
+  {
+    id: 'ENTERPRISE',
+    name: 'Plan Empresarial',
+    price: 99.99,
+    maxProducts: 10000,
+    supportLevel: '24/7 Dedicado',
+    features: ['Todo ilimitado', 'API Access', 'Soporte Multi-sucursal', 'Personalización de Marca']
+  }
+];
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: '1', name: 'Herramientas Manuales' },
