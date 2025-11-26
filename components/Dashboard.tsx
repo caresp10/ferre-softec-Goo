@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Product, Sale } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
@@ -8,6 +9,10 @@ interface DashboardProps {
   products: Product[];
   sales: Sale[];
 }
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(amount);
+};
 
 const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -36,7 +41,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
   const getAiInsights = async () => {
     if (sales.length === 0) return;
     setLoadingAi(true);
-    const summary = `Total ventas: $${totalRevenue}. Productos bajo stock: ${lowStockCount}. Ventas totales conteo: ${totalSalesCount}.`;
+    const summary = `Total ventas: ${formatCurrency(totalRevenue)}. Productos bajo stock: ${lowStockCount}. Ventas totales conteo: ${totalSalesCount}.`;
     const analysis = await analyzeSalesTrends(summary);
     setAiAnalysis(analysis);
     setLoadingAi(false);
@@ -59,7 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Ingresos Totales</p>
-            <p className="text-2xl font-bold text-slate-800">${totalRevenue.toFixed(2)}</p>
+            <p className="text-xl lg:text-2xl font-bold text-slate-800 truncate">{formatCurrency(totalRevenue)}</p>
           </div>
           <div className="p-3 bg-green-100 rounded-full">
             <DollarSign className="w-6 h-6 text-green-600" />
@@ -106,10 +111,11 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
               <BarChart data={salesData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value/1000}k`} />
                 <Tooltip 
                   cursor={{ fill: '#f1f5f9' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value: number) => formatCurrency(value)}
                 />
                 <Bar dataKey="total" fill="#f97316" radius={[4, 4, 0, 0]} />
               </BarChart>

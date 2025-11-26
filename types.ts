@@ -9,6 +9,7 @@ export interface Product {
   minStock: number;
   description?: string;
   sku: string;
+  taxRate: 10 | 5; // IVA 10% o 5%
 }
 
 export interface Category {
@@ -35,8 +36,9 @@ export interface Sale {
   customerId: string | null;
   customerName: string;
   items: CartItem[];
-  subtotal: number;
-  tax: number;
+  subtotal: number; // Gravada (Base imponible)
+  tax10: number; // Liquidación IVA 10%
+  tax5: number; // Liquidación IVA 5%
   total: number;
 }
 
@@ -99,7 +101,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'PRO',
     name: 'Plan Profesional',
-    price: 29.99,
+    price: 150000,
     maxProducts: 1000,
     supportLevel: 'Email Prioritario',
     features: ['Punto de Venta Avanzado', 'Facturación Electrónica', 'Reportes con IA', 'Multi-usuario (hasta 3)']
@@ -107,7 +109,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'ENTERPRISE',
     name: 'Plan Empresarial',
-    price: 99.99,
+    price: 450000,
     maxProducts: 10000,
     supportLevel: '24/7 Dedicado',
     features: ['Todo ilimitado', 'API Access', 'Soporte Multi-sucursal', 'Personalización de Marca']
@@ -125,15 +127,14 @@ export const INITIAL_CATEGORIES: Category[] = [
 ];
 
 export const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', sku: 'HAM-001', name: 'Martillo de Uña 16oz', category: 'Herramientas Manuales', price: 15.50, cost: 8.00, stock: 25, minStock: 5, description: 'Martillo resistente con mango de fibra de vidrio.' },
-  { id: '2', sku: 'DRI-050', name: 'Taladro Percutor 650W', category: 'Herramientas Eléctricas', price: 85.00, cost: 55.00, stock: 8, minStock: 2, description: 'Taladro profesional con velocidad variable.' },
-  { id: '3', sku: 'SCR-100', name: 'Tornillos para Madera 2"', category: 'Fijaciones', price: 0.10, cost: 0.02, stock: 5000, minStock: 1000, description: 'Caja a granel de tornillos autoperforantes.' },
-  { id: '4', sku: 'PNT-WHT', name: 'Pintura Blanca Mate 1GL', category: 'Pinturas', price: 22.00, cost: 14.00, stock: 12, minStock: 4, description: 'Pintura látex lavable de alto rendimiento.' },
-  { id: '5', sku: 'PLY-001', name: 'Alicate Universal 8"', category: 'Herramientas Manuales', price: 12.00, cost: 6.50, stock: 15, minStock: 3, description: 'Acero al cromo vanadio.' },
+  { id: '1', sku: 'HAM-001', name: 'Martillo de Uña 16oz', category: 'Herramientas Manuales', price: 45000, cost: 25000, stock: 25, minStock: 5, description: 'Martillo resistente con mango de fibra de vidrio.', taxRate: 10 },
+  { id: '2', sku: 'DRI-050', name: 'Taladro Percutor 650W', category: 'Herramientas Eléctricas', price: 350000, cost: 210000, stock: 8, minStock: 2, description: 'Taladro profesional con velocidad variable.', taxRate: 10 },
+  { id: '3', sku: 'SCR-100', name: 'Tornillos para Madera 2"', category: 'Fijaciones', price: 150, cost: 50, stock: 5000, minStock: 1000, description: 'Precio unitario. Tornillos autoperforantes.', taxRate: 10 },
+  { id: '4', sku: 'PNT-WHT', name: 'Pintura Blanca Mate 1GL', category: 'Pinturas', price: 85000, cost: 55000, stock: 12, minStock: 4, description: 'Pintura látex lavable de alto rendimiento.', taxRate: 10 },
+  { id: '5', sku: 'SEM-001', name: 'Semillas de Pasto 1kg', category: 'Jardinería', price: 25000, cost: 15000, stock: 15, minStock: 3, description: 'Semillas para césped de alto tráfico.', taxRate: 5 },
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
-  { id: '1', name: 'Cliente General', email: 'ventas@ferreteria.com', phone: '000-0000', address: 'Local', taxId: '00000000' },
-  { id: '2', name: 'Juan Pérez', email: 'juan@gmail.com', phone: '555-0123', address: 'Av. Principal 123', taxId: '12345678' },
-  { id: '3', name: 'Constructora S.A.', email: 'compras@constructora.com', phone: '555-9876', address: 'Zona Industrial Lote 5', taxId: '87654321' },
+  { id: '1', name: 'Cliente General', email: 'ventas@ferreteria.com', phone: '000-0000', address: 'Local', taxId: '44444401-7' },
+  { id: '2', name: 'Juan Pérez', email: 'juan@gmail.com', phone: '0981-123456', address: 'Av. Principal 123', taxId: '1234567-8' },
 ];

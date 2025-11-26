@@ -1,20 +1,52 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Sistema POS Ferretería SaaS
 
-# Run and deploy your AI Studio app
+Sistema de punto de venta, facturación e inventario para ferreterías con soporte multi-tenant (SaaS) y adaptado a la normativa tributaria de Paraguay (SET).
 
-This contains everything you need to run your app locally.
+## Tecnologías
 
-View your app in AI Studio: https://ai.studio/apps/drive/1JoGZmWjuQGbpldOEGBNbya1TMbXnEf59
+- **Frontend:** React + TypeScript + Vite
+- **Estilos:** Tailwind CSS
+- **Iconos:** Lucide React
+- **Gráficos:** Recharts
+- **IA:** Google Gemini API (para descripciones y análisis)
+- **Base de Datos:** Firebase Firestore (o LocalStorage por defecto)
 
-## Run Locally
+## Instalación Local
 
-**Prerequisites:**  Node.js
+1. Asegúrate de tener **Node.js** instalado.
+2. Clona o descarga los archivos en una carpeta.
+3. Instala las dependencias:
 
+```bash
+npm install
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+4. Inicia el servidor de desarrollo:
+
+```bash
+npm run dev
+```
+
+## Configuración de Variables de Entorno
+
+Para que funcionen las características de IA y la base de datos en la nube, crea un archivo `.env` en la raíz:
+
+```env
+VITE_GEMINI_API_KEY=tu_api_key_de_google_ai
+```
+
+## Configuración de Firebase
+
+Si deseas persistencia de datos en la nube:
+
+1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com).
+2. Habilita **Firestore Database** y **Authentication** (Email/Password).
+3. Copia tus credenciales en el archivo `src/firebaseConfig.ts`.
+
+## Características Principales
+
+- **Multi-Tenant:** Gestión de múltiples ferreterías con un solo sistema.
+- **Punto de Venta (POS):** Carrito, búsqueda por código de barras, tickets.
+- **Facturación Paraguay:** Cálculo de IVA 5%, 10% y Exentas. Dígito verificador RUC.
+- **Inventario:** Control de stock, costos y precios.
+- **IA:** Generación automática de descripciones de productos y análisis de ventas.

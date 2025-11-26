@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Product, Category } from '../types';
 import { Search, Plus, Edit2, Trash2, Wand2, Save, X, Barcode, RefreshCw, Check } from 'lucide-react';
@@ -11,6 +12,10 @@ interface InventoryProps {
   onDeleteProduct: (id: string) => void;
   onAddCategory: (name: string) => void;
 }
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(amount);
+};
 
 const Inventory: React.FC<InventoryProps> = ({ 
   products, 
@@ -37,7 +42,8 @@ const Inventory: React.FC<InventoryProps> = ({
     cost: 0,
     stock: 0,
     minStock: 0,
-    description: ''
+    description: '',
+    taxRate: 10
   });
 
   const filteredProducts = products.filter(p => 
@@ -62,7 +68,8 @@ const Inventory: React.FC<InventoryProps> = ({
         cost: 0,
         stock: 0,
         minStock: 5,
-        description: ''
+        description: '',
+        taxRate: 10
       });
     }
     setIsModalOpen(true);
@@ -134,6 +141,7 @@ const Inventory: React.FC<InventoryProps> = ({
                 <th className="px-6 py-4">Código / SKU</th>
                 <th className="px-6 py-4">Producto</th>
                 <th className="px-6 py-4">Categoría</th>
+                <th className="px-6 py-4 text-center">IVA</th>
                 <th className="px-6 py-4 text-right">Costo</th>
                 <th className="px-6 py-4 text-right">Precio</th>
                 <th className="px-6 py-4 text-center">Stock</th>
@@ -158,8 +166,11 @@ const Inventory: React.FC<InventoryProps> = ({
                       {product.category}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">${product.cost.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-right font-bold text-slate-800">${product.price.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="text-xs text-slate-500">{product.taxRate}%</span>
+                  </td>
+                  <td className="px-6 py-4 text-right">{formatCurrency(product.cost)}</td>
+                  <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(product.price)}</td>
                   <td className="px-6 py-4 text-center">
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${product.stock <= product.minStock ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                       {product.stock}
@@ -179,7 +190,7 @@ const Inventory: React.FC<InventoryProps> = ({
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                     No se encontraron productos.
                   </td>
                 </tr>
@@ -290,22 +301,47 @@ const Inventory: React.FC<InventoryProps> = ({
               <div className="col-span-1 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Costo</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Costo (Gs)</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2 text-slate-400">$</span>
-                      <input required type="number" step="0.01" className="w-full pl-6 border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
+                      <input required type="number" className="w-full border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
                         value={formData.cost} onChange={e => setFormData({...formData, cost: parseFloat(e.target.value)})} />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Precio</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Precio (Gs)</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2 text-slate-400">$</span>
-                      <input required type="number" step="0.01" className="w-full pl-6 border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
+                      <input required type="number" className="w-full border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
                         value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} />
                     </div>
                   </div>
                 </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Impuesto IVA</label>
+                   <div className="flex gap-4 mt-2">
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="taxRate" 
+                          className="text-orange-600 focus:ring-orange-500"
+                          checked={formData.taxRate === 10}
+                          onChange={() => setFormData({...formData, taxRate: 10})}
+                        />
+                        <span className="text-sm text-slate-700">IVA 10% (General)</span>
+                     </label>
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="taxRate" 
+                          className="text-orange-600 focus:ring-orange-500"
+                          checked={formData.taxRate === 5}
+                          onChange={() => setFormData({...formData, taxRate: 5})}
+                        />
+                        <span className="text-sm text-slate-700">IVA 5% (Canasta Básica)</span>
+                     </label>
+                   </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Stock Actual</label>

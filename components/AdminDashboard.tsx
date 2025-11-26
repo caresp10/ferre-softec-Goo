@@ -9,6 +9,10 @@ interface AdminDashboardProps {
 
 type AdminTab = 'TENANTS' | 'PLANS' | 'BILLING';
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(amount);
+};
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('TENANTS');
   
@@ -363,13 +367,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                   <p className="text-xs text-slate-500 uppercase font-bold">Ingresos Pendientes</p>
                   <p className="text-2xl font-bold text-orange-600 mt-1">
-                    ${invoices.filter(i => i.status === 'PENDING').reduce((acc, curr) => acc + curr.amount, 0).toFixed(2)}
+                    {formatCurrency(invoices.filter(i => i.status === 'PENDING').reduce((acc, curr) => acc + curr.amount, 0))}
                   </p>
                </div>
                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                   <p className="text-xs text-slate-500 uppercase font-bold">Cobrado este mes</p>
                   <p className="text-2xl font-bold text-green-600 mt-1">
-                     ${invoices.filter(i => i.status === 'PAID').reduce((acc, curr) => acc + curr.amount, 0).toFixed(2)}
+                     {formatCurrency(invoices.filter(i => i.status === 'PAID').reduce((acc, curr) => acc + curr.amount, 0))}
                   </p>
                </div>
                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -402,7 +406,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <td className="px-6 py-4 font-mono text-xs">{inv.id.slice(0, 8)}</td>
                         <td className="px-6 py-4 font-medium text-slate-900">{inv.tenantName}</td>
                         <td className="px-6 py-4">{inv.planId}</td>
-                        <td className="px-6 py-4 font-bold">${inv.amount.toFixed(2)}</td>
+                        <td className="px-6 py-4 font-bold">{formatCurrency(inv.amount)}</td>
                         <td className="px-6 py-4">{new Date(inv.dueDate).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-center">
                           <span className={`px-2 py-1 rounded text-xs font-bold 
@@ -449,7 +453,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     {plan.id === 'PRO' && <span className="absolute top-0 right-0 bg-orange-500 text-white text-xs px-2 py-1 rounded-bl-lg rounded-tr-lg font-bold">POPULAR</span>}
                     <h3 className="text-xl font-bold text-slate-800">{plan.name}</h3>
                     <div className="mt-4 mb-6">
-                      <span className="text-4xl font-bold text-slate-900">${plan.price}</span>
+                      <span className="text-4xl font-bold text-slate-900">{formatCurrency(plan.price)}</span>
                       <span className="text-slate-500">/mes</span>
                     </div>
                     <ul className="space-y-3 mb-8 flex-1">
@@ -477,246 +481,244 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </div>
         )}
 
-      </div>
+        {/* --- MODALS --- */}
 
-      {/* --- MODALS --- */}
-
-      {/* Tenant Modal */}
-      {isTenantModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-lg text-slate-800">
-                {editingTenant ? 'Editar Cliente' : 'Registrar Nuevo Cliente'}
-              </h3>
-              <button onClick={() => setIsTenantModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleTenantSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Ferretería</label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    placeholder="Ej. Ferretería El Tornillo"
-                  />
-                </div>
+        {/* Tenant Modal */}
+        {isTenantModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-lg text-slate-800">
+                  {editingTenant ? 'Editar Cliente' : 'Registrar Nuevo Cliente'}
+                </h3>
+                <button onClick={() => setIsTenantModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email de Acceso</label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input 
-                    required 
-                    type="email" 
-                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
-                    value={formData.email} 
-                    onChange={e => setFormData({...formData, email: e.target.value})}
-                    placeholder="cliente@email.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input 
-                    required={!editingTenant} 
-                    type="text" 
-                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none font-mono text-sm" 
-                    value={formData.password} 
-                    onChange={e => setFormData({...formData, password: e.target.value})}
-                    placeholder={editingTenant ? "Dejar igual para no cambiar" : "Contraseña segura"}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Plan</label>
-                  <select 
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
-                    value={formData.plan}
-                    onChange={e => setFormData({...formData, plan: e.target.value as any})}
-                  >
-                    <option value="FREE">Gratis (Free)</option>
-                    <option value="PRO">Profesional</option>
-                    <option value="ENTERPRISE">Enterprise</option>
-                  </select>
-                </div>
+              
+              <form onSubmit={handleTenantSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                  <select 
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
-                    value={formData.isActive ? 'true' : 'false'}
-                    onChange={e => setFormData({...formData, isActive: e.target.value === 'true'})}
-                  >
-                    <option value="true">Activo</option>
-                    <option value="false">Suspendido</option>
-                  </select>
-                </div>
-              </div>
-
-              {formError && (
-                <div className="text-red-500 text-xs bg-red-50 p-2 rounded border border-red-100">
-                  {formError}
-                </div>
-              )}
-
-              <div className="pt-4 mt-2 border-t border-slate-100 flex justify-end gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setIsTenantModalOpen(false)} 
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium text-sm"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 transition-colors font-medium text-sm shadow-sm hover:shadow"
-                >
-                  <Save className="w-4 h-4" /> {editingTenant ? 'Guardar Cambios' : 'Crear Cliente'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Invoice Generator Modal */}
-      {isInvoiceModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-               <h3 className="font-bold text-lg text-slate-800">Generar Factura</h3>
-               <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
-            </div>
-            <div className="p-6">
-               <label className="block text-sm font-medium text-slate-700 mb-2">Seleccionar Cliente a Facturar</label>
-               <select 
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 mb-4 bg-white"
-                value={invoiceTenantId}
-                onChange={(e) => setInvoiceTenantId(e.target.value)}
-               >
-                 <option value="">Seleccione una empresa...</option>
-                 {tenants.filter(t => t.plan !== 'FREE').map(t => (
-                   <option key={t.id} value={t.id}>{t.name} ({t.plan})</option>
-                 ))}
-               </select>
-               
-               {invoiceTenantId && (
-                 <div className="bg-slate-50 p-3 rounded text-sm text-slate-600 mb-4 border border-slate-200">
-                    <p>Plan: <strong>{tenants.find(t => t.id === invoiceTenantId)?.plan}</strong></p>
-                    <p>Monto: <strong>${SUBSCRIPTION_PLANS.find(p => p.id === tenants.find(t => t.id === invoiceTenantId)?.plan)?.price}</strong></p>
-                    <p className="text-xs text-slate-400 mt-1">Se generará con fecha de hoy + 10 días de vencimiento.</p>
-                 </div>
-               )}
-
-               <button 
-                onClick={handleGenerateInvoice}
-                disabled={!invoiceTenantId}
-                className="w-full bg-slate-900 text-white py-2 rounded-lg hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed font-medium"
-               >
-                 Confirmar y Generar
-               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Invoice Modal */}
-      {isEditInvoiceModalOpen && editingInvoice && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-               <h3 className="font-bold text-lg text-slate-800">Editar Factura</h3>
-               <button onClick={() => setIsEditInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
-            </div>
-            <form onSubmit={handleEditInvoiceSubmit} className="p-6 space-y-4">
-               
-               <div>
-                 <p className="text-xs text-slate-500 mb-1">Empresa</p>
-                 <p className="font-medium text-slate-900">{editingInvoice.tenantName}</p>
-                 <p className="text-xs text-slate-400 mt-1">Factura #{editingInvoice.id.slice(0,8)}</p>
-               </div>
-
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">Monto ($)</label>
-                 <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 font-bold">$</span>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      className="w-full pl-8 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                      value={invoiceFormData.amount}
-                      onChange={e => setInvoiceFormData({...invoiceFormData, amount: parseFloat(e.target.value)})}
-                    />
-                 </div>
-               </div>
-
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Vencimiento</label>
-                 <div className="relative">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Ferretería</label>
+                  <div className="relative">
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                       <Calendar className="w-4 h-4"/>
+                      <Building2 className="w-4 h-4" />
                     </div>
                     <input 
-                      type="date"
-                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                      value={invoiceFormData.dueDate ? new Date(invoiceFormData.dueDate).toISOString().split('T')[0] : ''}
-                      onChange={e => setInvoiceFormData({...invoiceFormData, dueDate: new Date(e.target.value).toISOString()})}
+                      required 
+                      type="text" 
+                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
+                      value={formData.name} 
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                      placeholder="Ej. Ferretería El Tornillo"
                     />
-                 </div>
-               </div>
+                  </div>
+                </div>
 
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                 <select 
-                   className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
-                   value={invoiceFormData.status}
-                   onChange={e => setInvoiceFormData({...invoiceFormData, status: e.target.value as any})}
-                 >
-                   <option value="PENDING">Pendiente</option>
-                   <option value="PAID">Pagado</option>
-                   <option value="OVERDUE">Vencido</option>
-                 </select>
-               </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email de Acceso</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <input 
+                      required 
+                      type="email" 
+                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
+                      value={formData.email} 
+                      onChange={e => setFormData({...formData, email: e.target.value})}
+                      placeholder="cliente@email.com"
+                    />
+                  </div>
+                </div>
 
-               <div className="pt-2 flex gap-3">
-                 <button 
-                  type="button"
-                  onClick={() => setIsEditInvoiceModalOpen(false)}
-                  className="flex-1 text-slate-600 hover:bg-slate-100 py-2 rounded-lg font-medium transition-colors border border-slate-200"
-                 >
-                   Cancelar
-                 </button>
-                 <button 
-                  type="submit"
-                  className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
-                 >
-                   Guardar
-                 </button>
-               </div>
-            </form>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input 
+                      required={!editingTenant} 
+                      type="text" 
+                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none font-mono text-sm" 
+                      value={formData.password} 
+                      onChange={e => setFormData({...formData, password: e.target.value})}
+                      placeholder={editingTenant ? "Dejar igual para no cambiar" : "Contraseña segura"}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Plan</label>
+                    <select 
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
+                      value={formData.plan}
+                      onChange={e => setFormData({...formData, plan: e.target.value as any})}
+                    >
+                      <option value="FREE">Gratis (Free)</option>
+                      <option value="PRO">Profesional</option>
+                      <option value="ENTERPRISE">Enterprise</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                    <select 
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
+                      value={formData.isActive ? 'true' : 'false'}
+                      onChange={e => setFormData({...formData, isActive: e.target.value === 'true'})}
+                    >
+                      <option value="true">Activo</option>
+                      <option value="false">Suspendido</option>
+                    </select>
+                  </div>
+                </div>
+
+                {formError && (
+                  <div className="text-red-500 text-xs bg-red-50 p-2 rounded border border-red-100">
+                    {formError}
+                  </div>
+                )}
+
+                <div className="pt-4 mt-2 border-t border-slate-100 flex justify-end gap-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsTenantModalOpen(false)} 
+                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 transition-colors font-medium text-sm shadow-sm hover:shadow"
+                  >
+                    <Save className="w-4 h-4" /> {editingTenant ? 'Guardar Cambios' : 'Crear Cliente'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
+        {/* Invoice Generator Modal */}
+        {isInvoiceModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                 <h3 className="font-bold text-lg text-slate-800">Generar Factura</h3>
+                 <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+              </div>
+              <div className="p-6">
+                 <label className="block text-sm font-medium text-slate-700 mb-2">Seleccionar Cliente a Facturar</label>
+                 <select 
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 mb-4 bg-white"
+                  value={invoiceTenantId}
+                  onChange={(e) => setInvoiceTenantId(e.target.value)}
+                 >
+                   <option value="">Seleccione una empresa...</option>
+                   {tenants.filter(t => t.plan !== 'FREE').map(t => (
+                     <option key={t.id} value={t.id}>{t.name} ({t.plan})</option>
+                   ))}
+                 </select>
+                 
+                 {invoiceTenantId && (
+                   <div className="bg-slate-50 p-3 rounded text-sm text-slate-600 mb-4 border border-slate-200">
+                      <p>Plan: <strong>{tenants.find(t => t.id === invoiceTenantId)?.plan}</strong></p>
+                      <p>Monto: <strong>{formatCurrency(SUBSCRIPTION_PLANS.find(p => p.id === tenants.find(t => t.id === invoiceTenantId)?.plan)?.price || 0)}</strong></p>
+                      <p className="text-xs text-slate-400 mt-1">Se generará con fecha de hoy + 10 días de vencimiento.</p>
+                   </div>
+                 )}
+
+                 <button 
+                  onClick={handleGenerateInvoice}
+                  disabled={!invoiceTenantId}
+                  className="w-full bg-slate-900 text-white py-2 rounded-lg hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed font-medium"
+                 >
+                   Confirmar y Generar
+                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Invoice Modal */}
+        {isEditInvoiceModalOpen && editingInvoice && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                 <h3 className="font-bold text-lg text-slate-800">Editar Factura</h3>
+                 <button onClick={() => setIsEditInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+              </div>
+              <form onSubmit={handleEditInvoiceSubmit} className="p-6 space-y-4">
+                 
+                 <div>
+                   <p className="text-xs text-slate-500 mb-1">Empresa</p>
+                   <p className="font-medium text-slate-900">{editingInvoice.tenantName}</p>
+                   <p className="text-xs text-slate-400 mt-1">Factura #{editingInvoice.id.slice(0,8)}</p>
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Monto (Gs)</label>
+                   <div className="relative">
+                      <input 
+                        type="number" 
+                        step="1"
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                        value={invoiceFormData.amount}
+                        onChange={e => setInvoiceFormData({...invoiceFormData, amount: parseFloat(e.target.value)})}
+                      />
+                   </div>
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Vencimiento</label>
+                   <div className="relative">
+                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
+                         <Calendar className="w-4 h-4"/>
+                      </div>
+                      <input 
+                        type="date"
+                        className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                        value={invoiceFormData.dueDate ? new Date(invoiceFormData.dueDate).toISOString().split('T')[0] : ''}
+                        onChange={e => setInvoiceFormData({...invoiceFormData, dueDate: new Date(e.target.value).toISOString()})}
+                      />
+                   </div>
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                   <select 
+                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
+                     value={invoiceFormData.status}
+                     onChange={e => setInvoiceFormData({...invoiceFormData, status: e.target.value as any})}
+                   >
+                     <option value="PENDING">Pendiente</option>
+                     <option value="PAID">Pagado</option>
+                     <option value="OVERDUE">Vencido</option>
+                   </select>
+                 </div>
+
+                 <div className="pt-2 flex gap-3">
+                   <button 
+                    type="button"
+                    onClick={() => setIsEditInvoiceModalOpen(false)}
+                    className="flex-1 text-slate-600 hover:bg-slate-100 py-2 rounded-lg font-medium transition-colors border border-slate-200"
+                   >
+                     Cancelar
+                   </button>
+                   <button 
+                    type="submit"
+                    className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
+                   >
+                     Guardar
+                   </button>
+                 </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 };

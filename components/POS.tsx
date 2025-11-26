@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Product, Customer, CartItem, Sale } from '../types';
 import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, User, Barcode, Grid, ListOrdered } from 'lucide-react';
@@ -9,6 +10,10 @@ interface POSProps {
 }
 
 type PosTab = 'CATALOG' | 'CART';
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(amount);
+};
 
 const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,10 +76,28 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
     }
   };
 
+  // Cálculo de totales con IVA Paraguay (Precio incluye IVA)
+  // IVA 10% = Precio / 11
+  // IVA 5% = Precio / 21
   const totals = useMemo(() => {
-    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const tax = subtotal * 0.18;
-    return { subtotal, tax, total: subtotal + tax };
+    let total = 0;
+    let tax10 = 0;
+    let tax5 = 0;
+
+    cart.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      total += itemTotal;
+      
+      if (item.taxRate === 10) {
+        tax10 += itemTotal / 11;
+      } else if (item.taxRate === 5) {
+        tax5 += itemTotal / 21;
+      }
+    });
+
+    const subtotal = total - tax10 - tax5; // Base imponible
+
+    return { subtotal, tax10, tax5, total };
   }, [cart]);
 
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -150,7 +173,6 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                 key={product.id}
                 onClick={() => {
                    addToCart(product);
-                   // Optional: Provide visual feedback
                 }}
                 className="bg-white p-3 lg:p-4 rounded-xl shadow-sm border border-slate-100 hover:border-orange-400 hover:shadow-md transition-all text-left flex flex-col justify-between group h-36 lg:h-40 active:scale-95 duration-150"
               >
@@ -162,7 +184,7 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                   <p className="text-[10px] lg:text-xs text-slate-500 truncate">{product.category}</p>
                 </div>
                 <div className="mt-2 flex justify-between items-end">
-                  <span className="text-base lg:text-lg font-bold text-orange-600">${product.price.toFixed(2)}</span>
+                  <span className="text-base lg:text-lg font-bold text-orange-600">{formatCurrency(product.price)}</span>
                   <span className="text-[10px] lg:text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded-md group-hover:bg-orange-50 group-hover:text-orange-600">
                     Stock: {product.stock}
                   </span>
@@ -208,7 +230,7 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                 <div key={item.id} className="flex justify-between items-center group">
                   <div className="flex-1 mr-2">
                     <h4 className="font-medium text-slate-800 text-sm line-clamp-1">{item.name}</h4>
-                    <p className="text-xs text-slate-500">${item.price.toFixed(2)} unit.</p>
+                    <p className="text-xs text-slate-500">{formatCurrency(item.price)} unit.</p>
                   </div>
                   <div className="flex items-center gap-2 lg:gap-3">
                     <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
@@ -216,8 +238,8 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                       <span className="px-1 text-sm font-medium w-6 text-center">{item.quantity}</span>
                       <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:bg-slate-100 w-7 h-7 flex items-center justify-center"><Plus className="w-3 h-3" /></button>
                     </div>
-                    <div className="text-right min-w-[50px] lg:min-w-[60px]">
-                      <p className="font-bold text-slate-800 text-sm lg:text-base">${(item.price * item.quantity).toFixed(2)}</p>
+                    <div className="text-right min-w-[70px]">
+                      <p className="font-bold text-slate-800 text-sm lg:text-base">{formatCurrency(item.price * item.quantity)}</p>
                     </div>
                     <button onClick={() => removeFromCart(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
                       <Trash2 className="w-4 h-4" />
@@ -231,17 +253,22 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
           {/* Totals & Action */}
           <div className="p-6 bg-slate-50 border-t border-slate-200 mt-auto">
             <div className="space-y-2 mb-4">
-              <div className="flex justify-between text-slate-500 text-sm">
-                <span>Subtotal</span>
-                <span>${totals.subtotal.toFixed(2)}</span>
+               {/* En Paraguay el precio suele ser IVA Incluido en la vista general, pero podemos mostrar el desglose */}
+               <div className="flex justify-between text-slate-500 text-xs">
+                <span>Total Gravada (Base)</span>
+                <span>{formatCurrency(totals.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-slate-500 text-sm">
-                <span>Impuestos (10%)</span>
-                <span>${totals.tax.toFixed(2)}</span>
+              <div className="flex justify-between text-slate-500 text-xs">
+                <span>Liquidación IVA 10%</span>
+                <span>{formatCurrency(totals.tax10)}</span>
+              </div>
+              <div className="flex justify-between text-slate-500 text-xs">
+                <span>Liquidación IVA 5%</span>
+                <span>{formatCurrency(totals.tax5)}</span>
               </div>
               <div className="flex justify-between text-slate-800 font-bold text-xl pt-2 border-t border-slate-200">
-                <span>Total</span>
-                <span>${totals.total.toFixed(2)}</span>
+                <span>Total Gs.</span>
+                <span>{formatCurrency(totals.total)}</span>
               </div>
             </div>
             
@@ -251,7 +278,7 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
               className="w-full py-3 lg:py-4 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-orange-600/20 flex items-center justify-center gap-2 transition-all transform active:scale-95"
             >
               <CreditCard className="w-5 h-5" />
-              Completar Venta
+              Cobrar
             </button>
           </div>
         </div>
@@ -266,6 +293,7 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                 <h2 className="text-xl font-bold uppercase tracking-widest">Ferretería Pro</h2>
                 <p className="text-slate-500 text-xs mt-1">Av. Las Herramientas 123</p>
                 <p className="text-slate-500 text-xs">Tel: (555) 123-4567</p>
+                <p className="text-slate-500 text-xs">RUC: 80000000-1</p>
               </div>
 
               <div className="space-y-1 text-xs">
@@ -279,6 +307,7 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                   <tr className="border-b border-slate-300">
                     <th className="py-2">Cant</th>
                     <th className="py-2">Desc</th>
+                    <th className="py-2 text-center">IVA</th>
                     <th className="py-2 text-right">Total</th>
                   </tr>
                 </thead>
@@ -286,8 +315,9 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
                   {showReceipt.items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="py-2">{item.quantity}</td>
-                      <td className="py-2 truncate max-w-[150px]">{item.name}</td>
-                      <td className="py-2 text-right">${(item.price * item.quantity).toFixed(2)}</td>
+                      <td className="py-2 truncate max-w-[120px]">{item.name}</td>
+                      <td className="py-2 text-center">{item.taxRate}%</td>
+                      <td className="py-2 text-right">{formatCurrency(item.price * item.quantity)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -295,8 +325,24 @@ const POS: React.FC<POSProps> = ({ products, customers, onCompleteSale }) => {
 
               <div className="border-t-2 border-dashed border-slate-300 pt-4 space-y-1">
                  <div className="flex justify-between font-bold text-lg">
-                  <span>TOTAL</span>
-                  <span>${showReceipt.total.toFixed(2)}</span>
+                  <span>TOTAL Gs.</span>
+                  <span>{formatCurrency(showReceipt.total)}</span>
+                </div>
+              </div>
+
+              <div className="text-xs text-slate-500 border-t border-slate-200 pt-2 mt-2">
+                <p className="font-bold mb-1">Liquidación del IVA:</p>
+                <div className="flex justify-between">
+                   <span>Gravada 10%:</span>
+                   <span>{formatCurrency(showReceipt.tax10)}</span>
+                </div>
+                <div className="flex justify-between">
+                   <span>Gravada 5%:</span>
+                   <span>{formatCurrency(showReceipt.tax5)}</span>
+                </div>
+                <div className="flex justify-between font-semibold mt-1">
+                   <span>Total IVA:</span>
+                   <span>{formatCurrency(showReceipt.tax10 + showReceipt.tax5)}</span>
                 </div>
               </div>
 
