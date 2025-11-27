@@ -12,7 +12,7 @@ export const generateProductDescription = async (productName: string, category: 
       Categoría: ${category}.
       Idioma: Español.`,
     });
-    return response.text.trim();
+    return response.text?.trim() ?? "Descripción no disponible.";
   } catch (error) {
     console.error("Error generating description:", error);
     return "Descripción no disponible en este momento.";
@@ -28,7 +28,7 @@ export const analyzeSalesTrends = async (salesSummary: string): Promise<string> 
       Datos: ${salesSummary}
       Formato: Lista de 3 puntos.`,
     });
-    return response.text.trim();
+    return response.text?.trim() ?? "No se pudo generar el análisis.";
   } catch (error) {
     console.error("Error analyzing trends:", error);
     return "No se pudo generar el análisis en este momento.";
