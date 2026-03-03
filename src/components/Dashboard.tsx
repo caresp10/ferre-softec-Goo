@@ -1,7 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
 import { Product, Sale } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, Package, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
 import { analyzeSalesTrends } from '../services/geminiService';
 
@@ -14,6 +13,12 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(amount);
 };
 
+// Helper local
+const getTotalStock = (p: Product) => {
+  if (!p.stocks) return (p as any).stock || 0;
+  return Object.values(p.stocks).reduce((a, b) => a + b, 0);
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -21,7 +26,8 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
   // KPIs
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const totalSalesCount = sales.length;
-  const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
+  // Use helper for stock calculation
+  const lowStockCount = products.filter(p => getTotalStock(p) <= p.minStock).length;
   
   // Chart Data Preparation
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -48,7 +54,6 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
   };
 
   useEffect(() => {
-    // Auto-load AI analysis on mount if data exists
     if (sales.length > 0 && !aiAnalysis) {
       getAiInsights();
     }
@@ -103,7 +108,6 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 lg:col-span-2">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Tendencia de Ventas (7 días)</h3>
           <div className="h-64">
@@ -123,7 +127,6 @@ const Dashboard: React.FC<DashboardProps> = ({ products, sales }) => {
           </div>
         </div>
 
-        {/* AI Insights Panel */}
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-xl shadow-md text-white">
           <div className="flex items-center space-x-2 mb-4">
             <Sparkles className="w-5 h-5 text-yellow-400" />

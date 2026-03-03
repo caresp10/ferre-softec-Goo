@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- FUNCIONES AUXILIARES ---
+
+    // 1. Identificar al Super Admin (Dios)
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.email == 'caresp10@gmail.com';
+    }
+
+    // 2. Verificar si es el dueño del Tenant
+    function isOwner(tenantId) {
+      return request.auth != null && request.auth.uid == tenantId;
+    }
+
+    // --- REGLAS GLOBALES ---
+
+    // El Super Admin tiene acceso total a todo
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // --- COLECCIONES ESPECÍFICAS ---
+
+    // Planes: Lectura pública, escritura solo Admin
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Usuarios de App (Staff y Dueños)
+    match /app_users/{userId} {
+      // Leer: El propio usuario o el Admin
+      allow read: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
+      
+      // Escribir (Crear/Editar): 
+      // 1. Admin
+      // 2. El propio usuario (perfil básico)
+      // 3. Un Dueño creando un empleado para SU empresa (Validamos tenantId en el recurso)
+      allow write: if isSuperAdmin() 
+                   || (request.auth != null && request.auth.uid == userId)
+                   || (request.auth != null && resource == null); // Permitir creación inicial (luego validamos tenant)
+      
+      // Nota: La validación estricta de "solo el dueño de X empresa puede crear usuarios para X empresa" 
+      // es compleja en reglas sin claims. Confiamos en la lógica del backend/frontend + estas reglas base.
+    }
+
+    // Tenants (Empresas)
+    match /tenants/{tenantId} {
+      // Leer: Cualquier usuario autenticado (para validar login)
+      allow read: if request.auth != null;
+      
+      // Crear: Cualquiera (Registro)
+      allow create: if request.auth != null;
+
+      // Modificar/Borrar: Solo el Dueño o Admin
+      allow update, delete: if isOwner(tenantId) || isSuperAdmin();
+
+      // --- SUBCOLECCIONES (Productos, Ventas, Config) ---
+      match /{document=**} {
+         // Lectura/Escritura permitida para empleados y dueños autenticados
+         // En una versión V2 estricta, aquí verificaríamos si el usuario está en app_users de este tenant
+         allow read, write: if request.auth != null;
+      }
+    }
+    
+    // Facturación Global
+    match /saas_invoices/{invoiceId} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

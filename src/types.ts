@@ -1,15 +1,14 @@
-
 export interface Product {
   id: string;
   name: string;
   category: string;
   price: number;
   cost: number;
-  stock: number;
+  stocks: { [branchId: string]: number };
   minStock: number;
   description?: string;
   sku: string;
-  taxRate: 10 | 5; // IVA 10% o 5%
+  taxRate: 10 | 5;
 }
 
 export interface Category {
@@ -23,23 +22,68 @@ export interface Customer {
   email: string;
   phone: string;
   address: string;
-  taxId: string; // RUC, DNI, CUIT, etc.
+  taxId: string;
 }
 
 export interface CartItem extends Product {
   quantity: number;
 }
 
+export interface EmissionPoint {
+  id: string;
+  code: string;
+  name: string;
+  currentInvoiceNumber: number;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  address: string;
+  phone: string;
+  emissionPoints: EmissionPoint[];
+}
+
+export interface InvoiceConfig {
+  commerceName: string;
+  legalName: string;
+  ruc: string;
+  address: string;
+  phone: string;
+  timbrado: string;
+  validityStart: string;
+  validityEnd: string;
+  branchCode: string;
+  expeditionPoint: string;
+  currentInvoiceNumber: number;
+  branches: Branch[];
+}
+
+export interface SessionContext {
+  branchId: string;
+  branchName: string;
+  emissionPointId: string;
+  emissionPointCode: string;
+  emissionPointName: string;
+}
+
 export interface Sale {
   id: string;
-  date: string; // ISO String
+  invoiceNumber?: string;
+  date: string;
   customerId: string | null;
   customerName: string;
+  customerTaxId?: string;
   items: CartItem[];
-  subtotal: number; // Gravada (Base imponible)
-  tax10: number; // Liquidación IVA 10%
-  tax5: number; // Liquidación IVA 5%
+  subtotal: number;
+  tax10: number;
+  tax5: number;
   total: number;
+  commerceSnapshot?: InvoiceConfig;
+  branchSnapshot?: Branch;
+  emissionPointSnapshot?: EmissionPoint;
+  soldBy?: string;
 }
 
 export interface Supplier {
@@ -50,23 +94,47 @@ export interface Supplier {
   email: string;
 }
 
+export type UserRole = 'OWNER' | 'MANAGER' | 'CASHIER';
+
+// NUEVO: Permisos granulares
+export interface UserPermissions {
+  canSell: boolean;          // Acceso al POS
+  canManageInventory: boolean; // Crear/Editar productos
+  canAdjustStock: boolean;   // Cargar stock manual
+  canTransferStock: boolean; // Mover entre depósitos
+  canSeeReports: boolean;    // Ver Dashboard
+  canManageClients: boolean; // Crear clientes
+}
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  tenantId: string;
+  role: UserRole;
+  branchId?: string; // Sucursal asignada (Obligatorio si no es Owner)
+  name: string;
+  permissions?: UserPermissions; // Permisos específicos
+}
+
 export interface Tenant {
   id: string;
-  name: string; // Nombre de la ferretería
+  name: string;
   email: string;
-  password: string; // En una app real, esto sería un hash
-  plan: 'FREE' | 'PRO' | 'ENTERPRISE';
+  password: string;
+  plan: string;
   createdAt: string;
-  isActive: boolean; // Control de acceso
-  isAdmin?: boolean; // Super Admin flag
+  isActive: boolean;
+  isAdmin?: boolean;
 }
 
 export interface SubscriptionPlan {
-  id: 'FREE' | 'PRO' | 'ENTERPRISE';
+  id: string;
   name: string;
   price: number;
   features: string[];
   maxProducts: number;
+  maxBranches: number;
+  maxPointsPerBranch: number;
   supportLevel: string;
 }
 
@@ -86,7 +154,8 @@ export enum ViewState {
   POS = 'POS',
   INVENTORY = 'INVENTORY',
   CUSTOMERS = 'CUSTOMERS',
-  HISTORY = 'HISTORY'
+  HISTORY = 'HISTORY',
+  SETTINGS = 'SETTINGS'
 }
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
@@ -95,24 +164,30 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     name: 'Plan Inicial',
     price: 0,
     maxProducts: 50,
+    maxBranches: 1,
+    maxPointsPerBranch: 1,
     supportLevel: 'Comunidad',
-    features: ['Punto de Venta Básico', 'Control de Stock Limitado', '1 Usuario']
+    features: ['Punto de Venta Básico', 'Control de Stock Limitado', '1 Usuario', 'Solo Casa Central']
   },
   {
     id: 'PRO',
     name: 'Plan Profesional',
     price: 150000,
     maxProducts: 1000,
+    maxBranches: 1,
+    maxPointsPerBranch: 2,
     supportLevel: 'Email Prioritario',
-    features: ['Punto de Venta Avanzado', 'Facturación Electrónica', 'Reportes con IA', 'Multi-usuario (hasta 3)']
+    features: ['Punto de Venta Avanzado', 'Facturación Electrónica', 'Reportes con IA', 'Multi-usuario', 'Hasta 2 Cajas']
   },
   {
     id: 'ENTERPRISE',
     name: 'Plan Empresarial',
     price: 450000,
     maxProducts: 10000,
+    maxBranches: 999,
+    maxPointsPerBranch: 999,
     supportLevel: '24/7 Dedicado',
-    features: ['Todo ilimitado', 'API Access', 'Soporte Multi-sucursal', 'Personalización de Marca']
+    features: ['Todo ilimitado', 'API Access', 'Soporte Multi-sucursal', 'Personalización de Marca', 'Sucursales Ilimitadas']
   }
 ];
 
@@ -126,15 +201,16 @@ export const INITIAL_CATEGORIES: Category[] = [
   { id: '7', name: 'Jardinería' },
 ];
 
+export const calculateTotalStock = (product: Product): number => {
+  if (!product.stocks) return (product as any).stock || 0;
+  return Object.values(product.stocks).reduce((a, b) => a + b, 0);
+};
+
 export const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', sku: 'HAM-001', name: 'Martillo de Uña 16oz', category: 'Herramientas Manuales', price: 45000, cost: 25000, stock: 25, minStock: 5, description: 'Martillo resistente con mango de fibra de vidrio.', taxRate: 10 },
-  { id: '2', sku: 'DRI-050', name: 'Taladro Percutor 650W', category: 'Herramientas Eléctricas', price: 350000, cost: 210000, stock: 8, minStock: 2, description: 'Taladro profesional con velocidad variable.', taxRate: 10 },
-  { id: '3', sku: 'SCR-100', name: 'Tornillos para Madera 2"', category: 'Fijaciones', price: 150, cost: 50, stock: 5000, minStock: 1000, description: 'Precio unitario. Tornillos autoperforantes.', taxRate: 10 },
-  { id: '4', sku: 'PNT-WHT', name: 'Pintura Blanca Mate 1GL', category: 'Pinturas', price: 85000, cost: 55000, stock: 12, minStock: 4, description: 'Pintura látex lavable de alto rendimiento.', taxRate: 10 },
-  { id: '5', sku: 'SEM-001', name: 'Semillas de Pasto 1kg', category: 'Jardinería', price: 25000, cost: 15000, stock: 15, minStock: 3, description: 'Semillas para césped de alto tráfico.', taxRate: 5 },
+  { id: '1', sku: 'HAM-001', name: 'Martillo de Uña 16oz', category: 'Herramientas Manuales', price: 45000, cost: 25000, stocks: {'default': 25}, minStock: 5, description: 'Martillo resistente con mango de fibra de vidrio.', taxRate: 10 },
+  { id: '2', sku: 'DRI-050', name: 'Taladro Percutor 650W', category: 'Herramientas Eléctricas', price: 350000, cost: 210000, stocks: {'default': 8}, minStock: 2, description: 'Taladro profesional con velocidad variable.', taxRate: 10 },
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
   { id: '1', name: 'Cliente General', email: 'ventas@ferreteria.com', phone: '000-0000', address: 'Local', taxId: '44444401-7' },
-  { id: '2', name: 'Juan Pérez', email: 'juan@gmail.com', phone: '0981-123456', address: 'Av. Principal 123', taxId: '1234567-8' },
 ];

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tenant } from '../types';
 import { Wrench, ArrowRight, Lock, Mail, Building2, CheckCircle2 } from 'lucide-react';
@@ -22,16 +21,35 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      const tenant = await loginUser(email, password);
+      // AHORA devuelve { tenant, user }
+      const { tenant, user } = await loginUser(email, password);
+      
+      // 1. Check for Active Status
       if (tenant.isActive === false) {
-        setError('Acceso denegado. Su suscripción ha sido suspendida.');
-      } else {
-        onLogin(tenant);
+        setError('Acceso denegado. Su cuenta ha sido suspendida. Contacte a soporte.');
+        setIsLoading(false);
+        return;
       }
+
+      // 2. Check for FREE Plan Trial Expiration (15 Days)
+      if (tenant.plan === 'FREE' && !tenant.isAdmin) {
+        const createdDate = new Date(tenant.createdAt);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - createdDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        if (diffDays > 15) {
+           setError('Su periodo de prueba de 15 días (Plan Inicial) ha expirado. Por favor contacte al administrador para actualizar su plan.');
+           setIsLoading(false);
+           return;
+        }
+      }
+
+      onLogin(tenant);
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/invalid-credential') {
-        setError('Credenciales incorrectas.');
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Credenciales incorrectas. Verifique correo y contraseña.');
       } else {
         setError('Error al iniciar sesión: ' + err.message);
       }
@@ -119,7 +137,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </h3>
             <p className="text-slate-500 mt-2">
               {isRegistering 
-                ? 'Comienza a gestionar tu negocio en minutos.' 
+                ? 'Comienza a gestionar tu negocio en minutos. (15 días de prueba gratis)' 
                 : 'Ingresa tus credenciales para acceder al panel.'}
             </p>
           </div>

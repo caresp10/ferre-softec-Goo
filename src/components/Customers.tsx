@@ -274,5 +274,4 @@ const Customers: React.FC<CustomersProps> = ({ customers, onAddCustomer }) => {
     </div>
   );
 };
-
 export default Customers;

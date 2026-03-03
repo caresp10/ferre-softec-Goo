@@ -1,25 +1,34 @@
-
 import React, { useState, useEffect } from 'react';
-import { Tenant, TenantInvoice, SUBSCRIPTION_PLANS } from '../types';
-import { Shield, LogOut, CheckCircle, Ban, Search, Store, CreditCard, Plus, X, Save, Edit, Building2, Mail, Lock, Receipt, Ticket, Calendar } from 'lucide-react';
-import { subscribeToAllTenants, updateTenantStatus } from '../services/firebaseService';
+import { Tenant, TenantInvoice, SubscriptionPlan } from '../types';
+import { Shield, LogOut, CheckCircle, Ban, Search, Store, CreditCard, Plus, X, Save, Edit, Building2, Mail, Lock, Receipt, Ticket, Calendar, KeyRound, Loader2, Info, Trash2, Monitor } from 'lucide-react';
+import { 
+  subscribeToAllTenants, 
+  updateTenantStatus, 
+  adminCreateTenant, 
+  updateTenant, 
+  sendTenantPasswordReset,
+  subscribeToPlans,
+  updatePlan,
+  createPlan,
+  deletePlan
+} from '../services/firebaseService';
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
-
-type AdminTab = 'TENANTS' | 'PLANS' | 'BILLING';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(amount);
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('TENANTS');
+  const [activeTab, setActiveTab] = useState<'TENANTS' | 'PLANS' | 'BILLING'>('TENANTS');
   
   // Data States
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [invoices, setInvoices] = useState<TenantInvoice[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   
   // UI States
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,6 +42,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     isActive: true
   });
   const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
 
   // Invoice Generation & Edit States
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -41,19 +51,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [editingInvoice, setEditingInvoice] = useState<TenantInvoice | null>(null);
   const [invoiceFormData, setInvoiceFormData] = useState<Partial<TenantInvoice>>({});
 
+  // Plan Edit/Create States
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<Partial<SubscriptionPlan>>({}); 
+  const [isNewPlan, setIsNewPlan] = useState(false);
+
   useEffect(() => {
-    // Load Tenants from Firebase
-    const unsub = subscribeToAllTenants((data) => {
+    // 1. Subscribe to Tenants
+    const unsubTenants = subscribeToAllTenants((data) => {
       setTenants(data);
+      setIsLoadingData(false);
+    });
+    
+    // 2. Subscribe to Plans (Real-time update)
+    const unsubPlans = subscribeToPlans((data) => {
+      setPlans(data);
     });
 
-    // Load Invoices (Local Storage for now as demo for SaaS billing)
+    // 3. Load Invoices (Local Storage demo)
     const storedInvoices = localStorage.getItem('saas_invoices');
     if (storedInvoices) {
       setInvoices(JSON.parse(storedInvoices));
     }
     
-    return () => unsub();
+    return () => {
+      unsubTenants();
+      unsubPlans();
+    };
   }, []);
 
   const saveInvoicesToStorage = (updatedInvoices: TenantInvoice[]) => {
@@ -66,12 +90,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       await updateTenantStatus(id, !currentStatus);
     } catch (error) {
       console.error("Error updating status", error);
+      alert("Error de permisos: Asegúrate de estar logueado como Admin.");
     }
   };
 
   const deleteTenant = (id: string) => {
-    if (confirm('¿Estás seguro de eliminar esta organización? Nota: En esta demo esto solo ocultará el acceso.')) {
-       // In a real app, calling a cloud function to recursively delete subcollections
+    if (confirm('¿Estás seguro de suspender esta organización?')) {
        updateTenantStatus(id, false);
     }
   };
@@ -85,12 +109,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const tenant = tenants.find(t => t.id === invoiceTenantId);
     if (!tenant) return;
 
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === tenant.plan);
+    const plan = plans.find(p => p.id === tenant.plan);
     if (!plan) return;
 
     const issueDate = new Date();
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 10); // 10 days to pay
+    dueDate.setDate(dueDate.getDate() + 10);
 
     const newInvoice: TenantInvoice = {
       id: crypto.randomUUID(),
@@ -108,40 +132,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setInvoiceTenantId('');
   };
 
-  // --- CRUD Handlers for Tenant ---
-
-  const handleOpenTenantModal = (tenant?: Tenant) => {
-    setFormError('');
-    if (tenant) {
-      setEditingTenant(tenant);
-      setFormData({
-        name: tenant.name,
-        email: tenant.email,
-        password: tenant.password,
-        plan: tenant.plan,
-        isActive: tenant.isActive
-      });
+  // --- Plan Editing Handlers ---
+  const handleOpenPlanModal = (plan?: SubscriptionPlan) => {
+    if (plan) {
+      setEditingPlan({ ...plan });
+      setIsNewPlan(false);
     } else {
-      setEditingTenant(null);
-      setFormData({
+      setEditingPlan({
         name: '',
-        email: '',
-        password: '',
-        plan: 'FREE',
-        isActive: true
+        price: 0,
+        maxProducts: 100,
+        maxBranches: 1, // Default to 1 branch (Matrix only)
+        maxPointsPerBranch: 1,
+        supportLevel: 'Estándar',
+        features: []
       });
+      setIsNewPlan(true);
     }
-    setIsTenantModalOpen(true);
+    setIsPlanModalOpen(true);
   };
 
-  const handleTenantSubmit = (e: React.FormEvent) => {
+  const handleDeletePlan = async (planId: string) => {
+    if (confirm('¿Eliminar este plan?')) {
+      try {
+        await deletePlan(planId);
+      } catch (error) {
+        alert("Error al eliminar plan");
+      }
+    }
+  };
+
+  const handlePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError('La creación manual de tenants está deshabilitada en esta vista. Por favor regístrese desde la pantalla de Login.');
-    // In a real app, this would call an Admin Cloud Function to create a user.
+    if (!editingPlan.name) return;
+
+    try {
+      if (isNewPlan) {
+        await createPlan(editingPlan as Omit<SubscriptionPlan, 'id'>);
+      } else {
+        await updatePlan(editingPlan as SubscriptionPlan);
+      }
+      setIsPlanModalOpen(false);
+      setEditingPlan({});
+    } catch (error: any) {
+      alert("Error al guardar plan: " + error.message);
+    }
   };
 
-  // --- Edit Invoice Handlers ---
-
+  // --- Invoice Editing Handlers ---
   const handleOpenEditInvoice = (invoice: TenantInvoice) => {
     setEditingInvoice(invoice);
     setInvoiceFormData({
@@ -160,9 +198,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       if (inv.id === editingInvoice.id) {
         return {
           ...inv,
-          amount: invoiceFormData.amount || inv.amount,
-          dueDate: invoiceFormData.dueDate || inv.dueDate,
-          status: invoiceFormData.status || inv.status
+          amount: invoiceFormData.amount ?? inv.amount,
+          dueDate: invoiceFormData.dueDate ?? inv.dueDate,
+          status: invoiceFormData.status ?? inv.status
         };
       }
       return inv;
@@ -171,6 +209,90 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     saveInvoicesToStorage(updatedInvoices);
     setIsEditInvoiceModalOpen(false);
     setEditingInvoice(null);
+  };
+
+  // --- CRUD Tenant Handlers ---
+  const handleOpenTenantModal = (tenant?: Tenant) => {
+    setFormError('');
+    setFormSuccess('');
+    if (tenant) {
+      setEditingTenant(tenant);
+      setFormData({
+        name: tenant.name,
+        email: tenant.email,
+        password: tenant.password || '',
+        plan: tenant.plan,
+        isActive: tenant.isActive
+      });
+    } else {
+      setEditingTenant(null);
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        plan: 'FREE',
+        isActive: true
+      });
+    }
+    setIsTenantModalOpen(true);
+  };
+
+  const handleTenantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+
+    try {
+      if (editingTenant) {
+        await updateTenant(editingTenant.id, {
+          name: formData.name,
+          plan: formData.plan as any,
+          isActive: formData.isActive,
+          password: formData.password
+        });
+        alert('Datos actualizados.');
+        setIsTenantModalOpen(false);
+      } else {
+        if (!formData.name || !formData.email || !formData.password) {
+          setFormError('Todos los campos son obligatorios.');
+          return;
+        }
+        
+        const newTenant: Tenant = {
+          id: '',
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          plan: formData.plan as any,
+          isActive: formData.isActive || true,
+          createdAt: new Date().toISOString()
+        };
+        
+        await adminCreateTenant(newTenant);
+        setIsTenantModalOpen(false);
+      }
+    } catch (error: any) {
+      setFormError('Error: ' + error.message);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!formData.email) return;
+    try {
+      await sendTenantPasswordReset(formData.email);
+      setFormSuccess('CORREO ENVIADO.');
+    } catch (error: any) {
+      setFormError('No se pudo enviar el correo: ' + error.message);
+    }
+  };
+
+  const calculateTrialDays = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - created.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const remaining = 15 - diffDays;
+    return remaining > 0 ? remaining : 0;
   };
 
   const filteredTenants = tenants.filter(t => 
@@ -225,7 +347,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
          </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
         
         {/* --- VIEW: TENANTS --- */}
@@ -244,18 +365,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       onChange={e => setSearchTerm(e.target.value)}
                     />
                  </div>
-                 {/* 
                  <button 
                   onClick={() => handleOpenTenantModal()}
                   className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" /> Nuevo Cliente
                 </button>
-                */}
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[200px]">
+               {isLoadingData ? (
+                 <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+                   <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                   <p>Cargando datos...</p>
+                 </div>
+               ) : (
                <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs">
                   <tr>
@@ -279,6 +404,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             tenant.plan === 'PRO' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
                           {tenant.plan}
                         </span>
+                        {tenant.plan === 'FREE' && (
+                          <div className="text-xs text-orange-600 mt-1 font-bold">
+                            Prueba: {calculateTrialDays(tenant.createdAt)} días restantes
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-slate-500">
                         {new Date(tenant.createdAt).toLocaleDateString()}
@@ -289,7 +419,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                          </span>
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
-                        {/* <button onClick={() => handleOpenTenantModal(tenant)} className="text-slate-400 hover:text-blue-600"><Edit className="w-4 h-4" /></button> */}
+                        <button onClick={() => handleOpenTenantModal(tenant)} className="text-slate-400 hover:text-blue-600"><Edit className="w-4 h-4" /></button>
                         <button onClick={() => toggleStatus(tenant.id, tenant.isActive)} className="text-slate-400 hover:text-orange-600"><Ban className="w-4 h-4" /></button>
                         <button onClick={() => deleteTenant(tenant.id)} className="text-slate-400 hover:text-red-600"><X className="w-4 h-4" /></button>
                       </td>
@@ -297,11 +427,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           </div>
         )}
 
-        {/* --- VIEW: BILLING --- */}
+        {/* ... (BILLING VIEW REMAINS SAME) ... */}
         {activeTab === 'BILLING' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -397,9 +528,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         {/* --- VIEW: PLANS --- */}
         {activeTab === 'PLANS' && (
           <div className="space-y-6">
-             <h2 className="text-2xl font-bold text-slate-800">Planes de Suscripción</h2>
+             <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Planes de Suscripción</h2>
+                <button 
+                  onClick={() => handleOpenPlanModal()}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Nuevo Plan
+                </button>
+             </div>
+             
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {SUBSCRIPTION_PLANS.map(plan => (
+                {plans.map(plan => (
                   <div key={plan.id} className={`bg-white rounded-2xl shadow-sm border p-6 flex flex-col ${plan.id === 'PRO' ? 'border-orange-500 ring-1 ring-orange-500 relative' : 'border-slate-200'}`}>
                     {plan.id === 'PRO' && <span className="absolute top-0 right-0 bg-orange-500 text-white text-xs px-2 py-1 rounded-bl-lg rounded-tr-lg font-bold">POPULAR</span>}
                     <h3 className="text-xl font-bold text-slate-800">{plan.name}</h3>
@@ -408,12 +548,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <span className="text-slate-500">/mes</span>
                     </div>
                     <ul className="space-y-3 mb-8 flex-1">
-                      {plan.features.map((feat, idx) => (
-                        <li key={idx} className="flex items-center gap-2 text-sm text-slate-600">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                          {feat}
-                        </li>
-                      ))}
+                      <li className="flex items-center gap-2 text-sm text-slate-600">
+                          <Store className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                          {plan.maxBranches > 100 
+                            ? 'Sucursales Ilimitadas' 
+                            : (plan.maxBranches === 1 
+                                ? 'Solo Casa Central' 
+                                : `Casa Central + ${plan.maxBranches - 1} Sucursales`)
+                          }
+                      </li>
+                      <li className="flex items-center gap-2 text-sm text-slate-600">
+                          <Monitor className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          Máx {plan.maxPointsPerBranch || 1} Cajas/local
+                      </li>
                       <li className="flex items-center gap-2 text-sm text-slate-600">
                           <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                           Hasta {plan.maxProducts} productos
@@ -422,10 +569,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                           Soporte: {plan.supportLevel}
                       </li>
+                      {plan.features.map((feat, idx) => (
+                        <li key={idx} className="flex items-center gap-2 text-sm text-slate-600">
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          {feat}
+                        </li>
+                      ))}
                     </ul>
-                    <button className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
-                      Editar Detalles
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleOpenPlanModal(plan)}
+                        className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Edit className="w-4 h-4" /> Editar
+                      </button>
+                      <button 
+                        onClick={() => handleDeletePlan(plan.id)}
+                        className="p-2 rounded-lg border border-slate-200 text-red-500 hover:bg-red-50 transition-colors"
+                        title="Eliminar Plan"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
              </div>
@@ -450,101 +615,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <form onSubmit={handleTenantSubmit} className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Ferretería</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                      <Building2 className="w-4 h-4" />
-                    </div>
-                    <input 
-                      required 
-                      type="text" 
-                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
-                      value={formData.name} 
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                      placeholder="Ej. Ferretería El Tornillo"
-                    />
-                  </div>
+                  <input required type="text" className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej. Ferretería El Tornillo" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email de Acceso</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <input 
-                      required 
-                      type="email" 
-                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none" 
-                      value={formData.email} 
-                      onChange={e => setFormData({...formData, email: e.target.value})}
-                      placeholder="cliente@email.com"
-                    />
-                  </div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <input required type="email" className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="cliente@email.com" disabled={!!editingTenant} />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                      <Lock className="w-4 h-4" />
-                    </div>
-                    <input 
-                      required={!editingTenant} 
-                      type="text" 
-                      className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none font-mono text-sm" 
-                      value={formData.password} 
-                      onChange={e => setFormData({...formData, password: e.target.value})}
-                      placeholder={editingTenant ? "Dejar igual para no cambiar" : "Contraseña segura"}
-                    />
-                  </div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{editingTenant ? 'Nueva Contraseña' : 'Contraseña'}</label>
+                  <input required={!editingTenant} type="text" className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder={editingTenant ? "Escribe para cambiar" : "Contraseña segura"} />
                 </div>
-
+                {editingTenant && (
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                     <p className="text-xs text-slate-500 mb-2">Seguridad</p>
+                     <button type="button" onClick={handlePasswordReset} className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded text-xs font-bold flex items-center justify-center gap-2"><KeyRound className="w-3 h-3"/> Enviar Correo de Restablecimiento</button>
+                     {formSuccess && <p className="text-xs text-green-600 mt-2">{formSuccess}</p>}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                    <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Plan</label>
                     <select 
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white"
                       value={formData.plan}
                       onChange={e => setFormData({...formData, plan: e.target.value as any})}
                     >
-                      <option value="FREE">Gratis (Free)</option>
-                      <option value="PRO">Profesional</option>
-                      <option value="ENTERPRISE">Enterprise</option>
+                      {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                    <select 
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
-                      value={formData.isActive ? 'true' : 'false'}
-                      onChange={e => setFormData({...formData, isActive: e.target.value === 'true'})}
-                    >
+                    <select className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white" value={formData.isActive ? 'true' : 'false'} onChange={e => setFormData({...formData, isActive: e.target.value === 'true'})}>
                       <option value="true">Activo</option>
                       <option value="false">Suspendido</option>
                     </select>
                   </div>
                 </div>
-
-                {formError && (
-                  <div className="text-red-500 text-xs bg-red-50 p-2 rounded border border-red-100">
-                    {formError}
-                  </div>
-                )}
-
+                {formError && <div className="text-red-500 text-xs bg-red-50 p-2 rounded border border-red-100">{formError}</div>}
                 <div className="pt-4 mt-2 border-t border-slate-100 flex justify-end gap-3">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsTenantModalOpen(false)} 
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium text-sm"
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 transition-colors font-medium text-sm shadow-sm hover:shadow"
-                  >
-                    <Save className="w-4 h-4" /> {editingTenant ? 'Guardar Cambios' : 'Crear Cliente'}
-                  </button>
+                  <button type="button" onClick={() => setIsTenantModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                  <button type="submit" className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 shadow-sm"><Save className="w-4 h-4" /> {editingTenant ? 'Guardar Cambios' : 'Crear Cliente'}</button>
                 </div>
               </form>
             </div>
@@ -567,26 +677,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   onChange={(e) => setInvoiceTenantId(e.target.value)}
                  >
                    <option value="">Seleccione una empresa...</option>
-                   {tenants.filter(t => t.plan !== 'FREE').map(t => (
-                     <option key={t.id} value={t.id}>{t.name} ({t.plan})</option>
-                   ))}
+                   {tenants.filter(t => t.plan !== 'FREE').map(t => <option key={t.id} value={t.id}>{t.name} ({t.plan})</option>)}
                  </select>
-                 
                  {invoiceTenantId && (
                    <div className="bg-slate-50 p-3 rounded text-sm text-slate-600 mb-4 border border-slate-200">
                       <p>Plan: <strong>{tenants.find(t => t.id === invoiceTenantId)?.plan}</strong></p>
-                      <p>Monto: <strong>{formatCurrency(SUBSCRIPTION_PLANS.find(p => p.id === tenants.find(t => t.id === invoiceTenantId)?.plan)?.price || 0)}</strong></p>
-                      <p className="text-xs text-slate-400 mt-1">Se generará con fecha de hoy + 10 días de vencimiento.</p>
+                      <p>Monto: <strong>{formatCurrency(plans.find(p => p.id === tenants.find(t => t.id === invoiceTenantId)?.plan)?.price || 0)}</strong></p>
                    </div>
                  )}
-
-                 <button 
-                  onClick={handleGenerateInvoice}
-                  disabled={!invoiceTenantId}
-                  className="w-full bg-slate-900 text-white py-2 rounded-lg hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed font-medium"
-                 >
-                   Confirmar y Generar
-                 </button>
+                 <button onClick={handleGenerateInvoice} disabled={!invoiceTenantId} className="w-full bg-slate-900 text-white py-2 rounded-lg hover:bg-slate-800 disabled:bg-slate-300 font-medium">Confirmar</button>
               </div>
             </div>
           </div>
@@ -601,68 +700,76 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                  <button onClick={() => setIsEditInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handleEditInvoiceSubmit} className="p-6 space-y-4">
-                 
                  <div>
                    <p className="text-xs text-slate-500 mb-1">Empresa</p>
                    <p className="font-medium text-slate-900">{editingInvoice.tenantName}</p>
-                   <p className="text-xs text-slate-400 mt-1">Factura #{editingInvoice.id.slice(0,8)}</p>
                  </div>
-
                  <div>
                    <label className="block text-sm font-medium text-slate-700 mb-1">Monto (Gs)</label>
-                   <div className="relative">
-                      <input 
-                        type="number" 
-                        step="1"
-                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                        value={invoiceFormData.amount}
-                        onChange={e => setInvoiceFormData({...invoiceFormData, amount: parseFloat(e.target.value)})}
-                      />
-                   </div>
+                   <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2" value={invoiceFormData.amount} onChange={e => setInvoiceFormData({...invoiceFormData, amount: parseFloat(e.target.value)})} />
                  </div>
-
-                 <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Vencimiento</label>
-                   <div className="relative">
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">
-                         <Calendar className="w-4 h-4"/>
-                      </div>
-                      <input 
-                        type="date"
-                        className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                        value={invoiceFormData.dueDate ? new Date(invoiceFormData.dueDate).toISOString().split('T')[0] : ''}
-                        onChange={e => setInvoiceFormData({...invoiceFormData, dueDate: new Date(e.target.value).toISOString()})}
-                      />
-                   </div>
-                 </div>
-
                  <div>
                    <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                   <select 
-                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
-                     value={invoiceFormData.status}
-                     onChange={e => setInvoiceFormData({...invoiceFormData, status: e.target.value as any})}
-                   >
+                   <select className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white" value={invoiceFormData.status} onChange={e => setInvoiceFormData({...invoiceFormData, status: e.target.value as any})}>
                      <option value="PENDING">Pendiente</option>
                      <option value="PAID">Pagado</option>
                      <option value="OVERDUE">Vencido</option>
                    </select>
                  </div>
-
                  <div className="pt-2 flex gap-3">
-                   <button 
-                    type="button"
-                    onClick={() => setIsEditInvoiceModalOpen(false)}
-                    className="flex-1 text-slate-600 hover:bg-slate-100 py-2 rounded-lg font-medium transition-colors border border-slate-200"
-                   >
-                     Cancelar
-                   </button>
-                   <button 
-                    type="submit"
-                    className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
-                   >
-                     Guardar
-                   </button>
+                   <button type="button" onClick={() => setIsEditInvoiceModalOpen(false)} className="flex-1 text-slate-600 hover:bg-slate-100 py-2 rounded-lg font-medium border border-slate-200">Cancelar</button>
+                   <button type="submit" className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm">Guardar</button>
+                 </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Plan Edit Modal */}
+        {isPlanModalOpen && editingPlan && (
+           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                 <h3 className="font-bold text-lg text-slate-800">{isNewPlan ? 'Crear Nuevo Plan' : `Editar Plan: ${editingPlan.name}`}</h3>
+                 <button onClick={() => setIsPlanModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+              </div>
+              <form onSubmit={handlePlanSubmit} className="p-6 space-y-4">
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Plan</label>
+                   <input required type="text" className="w-full border border-slate-300 rounded-lg px-3 py-2" value={editingPlan.name || ''} onChange={e => setEditingPlan({...editingPlan, name: e.target.value})} placeholder="Ej. Plan Gold" />
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Precio (Gs)</label>
+                      <input required type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2" value={editingPlan.price || 0} onChange={e => setEditingPlan({...editingPlan, price: Number(e.target.value)})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Max. Productos</label>
+                      <input required type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2" value={editingPlan.maxProducts || 0} onChange={e => setEditingPlan({...editingPlan, maxProducts: Number(e.target.value)})} />
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Límite de Sucursales</label>
+                      <input required type="number" min="1" className="w-full border border-slate-300 rounded-lg px-3 py-2" value={editingPlan.maxBranches || 1} onChange={e => setEditingPlan({...editingPlan, maxBranches: Number(e.target.value)})} title="1 = Solo Casa Central (Sin sucursales)" />
+                      <p className="text-[10px] text-slate-500 mt-1">1 = Solo Matriz. 999 = Ilimitado.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Máx Cajas por Local</label>
+                      <input required type="number" min="1" className="w-full border border-slate-300 rounded-lg px-3 py-2" value={editingPlan.maxPointsPerBranch || 1} onChange={e => setEditingPlan({...editingPlan, maxPointsPerBranch: Number(e.target.value)})} />
+                    </div>
+                 </div>
+                 
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Características (Separadas por coma)</label>
+                    <textarea className="w-full border border-slate-300 rounded-lg px-3 py-2 h-20 text-sm resize-none" value={editingPlan.features?.join(', ') || ''} onChange={e => setEditingPlan({...editingPlan, features: e.target.value.split(',').map(s => s.trim())})} placeholder="Feature 1, Feature 2..." />
+                 </div>
+
+                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onClick={() => setIsPlanModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Guardar Plan</button>
                  </div>
               </form>
             </div>
