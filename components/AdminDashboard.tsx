@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Tenant, TenantInvoice, SUBSCRIPTION_PLANS } from '../types';
+import { Tenant, TenantInvoice, SubscriptionPlan } from '../types';
 import { Shield, LogOut, CheckCircle, Ban, Search, Store, CreditCard, Plus, X, Save, Edit, Building2, Mail, Lock, Receipt, Ticket, Calendar } from 'lucide-react';
+import { subscribeToPlans, updatePlan } from '../services/firebaseService';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -19,6 +20,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // Data States
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [invoices, setInvoices] = useState<TenantInvoice[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   
   // UI States
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +42,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [editingInvoice, setEditingInvoice] = useState<TenantInvoice | null>(null);
   const [invoiceFormData, setInvoiceFormData] = useState<Partial<TenantInvoice>>({});
 
+  // Plan Edit States
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
+  const [planFormData, setPlanFormData] = useState<Partial<SubscriptionPlan>>({});
+
   useEffect(() => {
     // Load Tenants
     const storedTenants = localStorage.getItem('saas_tenants');
@@ -58,6 +65,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     if (storedInvoices) {
       setInvoices(JSON.parse(storedInvoices));
     }
+
+    // Load Plans from Firebase
+    const unsubscribePlans = subscribeToPlans(setPlans);
+    return () => unsubscribePlans();
   }, []);
 
   const saveTenantsToStorage = (updatedTenants: Tenant[]) => {
@@ -103,7 +114,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const tenant = tenants.find(t => t.id === invoiceTenantId);
     if (!tenant) return;
 
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === tenant.plan);
+    const plan = plans.find(p => p.id === tenant.plan);
     if (!plan) return;
 
     const issueDate = new Date();
@@ -222,6 +233,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     saveInvoicesToStorage(updatedInvoices);
     setIsEditInvoiceModalOpen(false);
     setEditingInvoice(null);
+  };
+
+  // --- Edit Plan Handlers ---
+
+  const handleOpenEditPlan = (plan: SubscriptionPlan) => {
+    setEditingPlan(plan);
+    setPlanFormData({ ...plan });
+    setIsPlanModalOpen(true);
+  };
+
+  const handlePlanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlan) return;
+
+    try {
+      await updatePlan({ ...editingPlan, ...planFormData } as SubscriptionPlan);
+      setIsPlanModalOpen(false);
+      setEditingPlan(null);
+    } catch (error) {
+      console.error("Error updating plan:", error);
+      alert("Error al actualizar el plan. Revise la consola.");
+    }
   };
 
   const filteredTenants = tenants.filter(t => 
@@ -448,7 +481,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           <div className="space-y-6">
              <h2 className="text-2xl font-bold text-slate-800">Planes de Suscripción</h2>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {SUBSCRIPTION_PLANS.map(plan => (
+                {plans.map(plan => (
                   <div key={plan.id} className={`bg-white rounded-2xl shadow-sm border p-6 flex flex-col ${plan.id === 'PRO' ? 'border-orange-500 ring-1 ring-orange-500 relative' : 'border-slate-200'}`}>
                     {plan.id === 'PRO' && <span className="absolute top-0 right-0 bg-orange-500 text-white text-xs px-2 py-1 rounded-bl-lg rounded-tr-lg font-bold">POPULAR</span>}
                     <h3 className="text-xl font-bold text-slate-800">{plan.name}</h3>
@@ -472,7 +505,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           Soporte: {plan.supportLevel}
                       </li>
                     </ul>
-                    <button className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
+                    <button 
+                      onClick={() => handleOpenEditPlan(plan)}
+                      className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+                    >
                       Editar Detalles
                     </button>
                   </div>
@@ -624,7 +660,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                  {invoiceTenantId && (
                    <div className="bg-slate-50 p-3 rounded text-sm text-slate-600 mb-4 border border-slate-200">
                       <p>Plan: <strong>{tenants.find(t => t.id === invoiceTenantId)?.plan}</strong></p>
-                      <p>Monto: <strong>{formatCurrency(SUBSCRIPTION_PLANS.find(p => p.id === tenants.find(t => t.id === invoiceTenantId)?.plan)?.price || 0)}</strong></p>
+                      <p>Monto: <strong>{formatCurrency(plans.find(p => p.id === tenants.find(t => t.id === invoiceTenantId)?.plan)?.price || 0)}</strong></p>
                       <p className="text-xs text-slate-400 mt-1">Se generará con fecha de hoy + 10 días de vencimiento.</p>
                    </div>
                  )}
@@ -711,6 +747,86 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
                    >
                      Guardar
+                   </button>
+                 </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Plan Modal */}
+        {isPlanModalOpen && editingPlan && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0">
+                 <h3 className="font-bold text-lg text-slate-800">Editar Plan: {editingPlan.name}</h3>
+                 <button onClick={() => setIsPlanModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+              </div>
+              <form onSubmit={handlePlanSubmit} className="p-6 space-y-4">
+                 
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Plan</label>
+                   <input 
+                     type="text" 
+                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                     value={planFormData.name}
+                     onChange={e => setPlanFormData({...planFormData, name: e.target.value})}
+                   />
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Precio (Gs)</label>
+                      <input 
+                        type="number" 
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                        value={planFormData.price}
+                        onChange={e => setPlanFormData({...planFormData, price: parseFloat(e.target.value)})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Max. Productos</label>
+                      <input 
+                        type="number" 
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                        value={planFormData.maxProducts}
+                        onChange={e => setPlanFormData({...planFormData, maxProducts: parseInt(e.target.value)})}
+                      />
+                    </div>
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Nivel de Soporte</label>
+                   <input 
+                     type="text" 
+                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                     value={planFormData.supportLevel}
+                     onChange={e => setPlanFormData({...planFormData, supportLevel: e.target.value})}
+                   />
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Características (una por línea)</label>
+                   <textarea 
+                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none h-32"
+                     value={planFormData.features?.join('\n')}
+                     onChange={e => setPlanFormData({...planFormData, features: e.target.value.split('\n')})}
+                   />
+                 </div>
+
+                 <div className="pt-4 flex gap-3 border-t border-slate-100">
+                   <button 
+                    type="button"
+                    onClick={() => setIsPlanModalOpen(false)}
+                    className="flex-1 text-slate-600 hover:bg-slate-100 py-2 rounded-lg font-medium transition-colors border border-slate-200"
+                   >
+                     Cancelar
+                   </button>
+                   <button 
+                    type="submit"
+                    className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
+                   >
+                     Guardar Cambios
                    </button>
                  </div>
               </form>
