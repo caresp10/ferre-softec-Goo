@@ -61,6 +61,25 @@ export interface Tenant {
   isAdmin?: boolean; // Super Admin flag
 }
 
+export interface UserPermissions {
+  canSell: boolean;
+  canManageInventory: boolean;
+  canAdjustStock: boolean;
+  canTransferStock: boolean;
+  canSeeReports: boolean;
+  canManageClients: boolean;
+}
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  name: string;
+  role: 'OWNER' | 'MANAGER' | 'CASHIER';
+  tenantId: string;
+  branchId?: string;
+  permissions?: UserPermissions;
+}
+
 export interface SubscriptionPlan {
   id: 'FREE' | 'PRO' | 'ENTERPRISE';
   name: string;

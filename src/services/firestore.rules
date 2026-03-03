@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- FUNCIONES DE AYUDA ---
+    
+    function isSuperAdmin() {
+      // Reemplaza con el email real de tu variable de entorno o usa Custom Claims
+      return request.auth.token.email == 'caresp10@gmail.com'; 
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/app_users/$(request.auth.uid)).data;
+    }
+
+    function belongsToTenant(tenantId) {
+      return getUserData().tenantId == tenantId;
+    }
+
+    function isOwner() {
+      return getUserData().role == 'OWNER';
+    }
+
+    function hasPermission(perm) {
+      let user = getUserData();
+      return user.role == 'OWNER' || user.permissions[perm] == true;
+    }
+
+    // --- REGLAS ---
+
+    // Colección de Usuarios de la App
+    match /app_users/{userId} {
+      // Un usuario puede leer su propio perfil
+      allow read: if request.auth.uid == userId || isSuperAdmin();
+      // Solo Super Admin o el propio usuario (limitado) pueden escribir
+      allow write: if isSuperAdmin() || request.auth.uid == userId;
+    }
+
+    // Colección de Tenants (Empresas)
+    match /tenants/{tenantId} {
+      // Lectura: Si perteneces al tenant o eres Super Admin
+      allow read: if belongsToTenant(tenantId) || isSuperAdmin();
+      // Escritura: Solo Super Admin (para crear/suspender) o el Dueño (para actualizar datos básicos)
+      allow update: if isSuperAdmin() || (belongsToTenant(tenantId) && isOwner());
+      allow create: if isSuperAdmin(); 
+      
+      // --- SUBCOLECCIONES DEL TENANT (Protección de datos por empresa) ---
+      // Regla genérica para subcolecciones: solo lectura/escritura si perteneces al tenant
+      match /{document=**} {
+        allow read, write: if belongsToTenant(tenantId);
+      }
+    }
+
+    // Planes (Solo lectura pública, escritura Admin)
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+  }
+}
