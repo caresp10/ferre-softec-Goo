@@ -121,14 +121,14 @@ export interface Tenant {
   name: string;
   email: string;
   password: string;
-  plan: string;
+  plan: string; // Permitir cualquier ID de plan
   createdAt: string;
   isActive: boolean;
   isAdmin?: boolean;
 }
 
 export interface SubscriptionPlan {
-  id: string;
+  id: string; // Permitir cualquier ID de plan
   name: string;
   price: number;
   features: string[];

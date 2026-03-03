@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tenant, TenantInvoice, SubscriptionPlan } from '../types';
-import { Shield, LogOut, CheckCircle, Ban, Search, Store, CreditCard, Plus, X, Save, Edit, Building2, Mail, Lock, Receipt, Ticket, Calendar } from 'lucide-react';
-import { subscribeToPlans, updatePlan } from '../services/firebaseService';
+import { Shield, LogOut, CheckCircle, Ban, Search, Store, CreditCard, Plus, X, Save, Edit, Building2, Mail, Lock, Receipt, Ticket, Calendar, Trash2 } from 'lucide-react';
+import { subscribeToPlans, updatePlan, createPlan, deletePlan } from '../services/firebaseService';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -46,6 +46,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [planFormData, setPlanFormData] = useState<Partial<SubscriptionPlan>>({});
+  const [isNewPlan, setIsNewPlan] = useState(false);
 
   useEffect(() => {
     // Load Tenants
@@ -237,18 +238,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // --- Edit Plan Handlers ---
 
-  const handleOpenEditPlan = (plan: SubscriptionPlan) => {
-    setEditingPlan(plan);
-    setPlanFormData({ ...plan });
+  const handleOpenPlanModal = (plan?: SubscriptionPlan) => {
+    if (plan) {
+      setEditingPlan(plan);
+      setPlanFormData({ ...plan });
+      setIsNewPlan(false);
+    } else {
+      setEditingPlan({} as SubscriptionPlan); // Placeholder para evitar null
+      setPlanFormData({
+        name: '',
+        price: 0,
+        maxProducts: 100,
+        supportLevel: 'Estándar',
+        features: []
+      });
+      setIsNewPlan(true);
+    }
     setIsPlanModalOpen(true);
+  };
+
+  const handleDeletePlan = async (planId: string) => {
+    if (confirm('¿Estás seguro de eliminar este plan? Esto no afectará a los clientes que ya lo tengan asignado, pero dejará de estar disponible para nuevos.')) {
+      await deletePlan(planId);
+    }
   };
 
   const handlePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPlan) return;
+    if (!planFormData.name) return;
 
     try {
-      await updatePlan({ ...editingPlan, ...planFormData } as SubscriptionPlan);
+      if (isNewPlan) {
+        await createPlan(planFormData as any);
+      } else {
+        await updatePlan({ ...editingPlan, ...planFormData } as SubscriptionPlan);
+      }
       setIsPlanModalOpen(false);
       setEditingPlan(null);
     } catch (error) {
@@ -479,7 +503,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         {/* --- VIEW: PLANS --- */}
         {activeTab === 'PLANS' && (
           <div className="space-y-6">
-             <h2 className="text-2xl font-bold text-slate-800">Planes de Suscripción</h2>
+             <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Planes de Suscripción</h2>
+                <button onClick={() => handleOpenPlanModal()} className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> Nuevo Plan
+                </button>
+             </div>
+             
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map(plan => (
                   <div key={plan.id} className={`bg-white rounded-2xl shadow-sm border p-6 flex flex-col ${plan.id === 'PRO' ? 'border-orange-500 ring-1 ring-orange-500 relative' : 'border-slate-200'}`}>
@@ -505,12 +535,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           Soporte: {plan.supportLevel}
                       </li>
                     </ul>
-                    <button 
-                      onClick={() => handleOpenEditPlan(plan)}
-                      className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-                    >
-                      Editar Detalles
-                    </button>
+                    <div className="flex gap-2 mt-4">
+                      <button 
+                        onClick={() => handleOpenPlanModal(plan)}
+                        className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Edit className="w-4 h-4"/> Editar
+                      </button>
+                      <button 
+                        onClick={() => handleDeletePlan(plan.id)}
+                        className="p-2 rounded-lg border border-slate-200 text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4"/>
+                      </button>
+                    </div>
                   </div>
                 ))}
              </div>
@@ -759,7 +797,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0">
-                 <h3 className="font-bold text-lg text-slate-800">Editar Plan: {editingPlan.name}</h3>
+                 <h3 className="font-bold text-lg text-slate-800">{isNewPlan ? 'Crear Nuevo Plan' : `Editar Plan: ${editingPlan.name}`}</h3>
                  <button onClick={() => setIsPlanModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handlePlanSubmit} className="p-6 space-y-4">
@@ -771,6 +809,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none"
                      value={planFormData.name}
                      onChange={e => setPlanFormData({...planFormData, name: e.target.value})}
+                     placeholder="Ej. Plan Básico"
                    />
                  </div>
 
@@ -811,6 +850,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:outline-none h-32"
                      value={planFormData.features?.join('\n')}
                      onChange={e => setPlanFormData({...planFormData, features: e.target.value.split('\n')})}
+                     placeholder="Soporte 24/7&#10;Acceso a API&#10;..."
                    />
                  </div>
 
@@ -826,7 +866,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     type="submit"
                     className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
                    >
-                     Guardar Cambios
+                     {isNewPlan ? 'Crear Plan' : 'Guardar Cambios'}
                    </button>
                  </div>
               </form>
